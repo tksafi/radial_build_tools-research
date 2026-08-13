@@ -270,7 +270,7 @@ class RadialBuildPlot(object):
             centerx = ll[0] + visual_thickness / 2 + 1
             centery = height / 2
             font_size = min( 
-                max(visual_thickness /2,11),18)
+                max(visual_thickness /3,11),18)
             text = ax.text(
                     centerx,
                     centery,
@@ -311,7 +311,7 @@ class RadialBuildPlot(object):
             reverse=False,
         )
 
-        fig.suptitle(self.title, y=1,fontsize =26)
+        fig.suptitle(self.title, y=1,fontsize =22)
         plt.subplots_adjust(hspace=0.12, top=0.88, bottom=0.06)
 
         self.figure = fig
@@ -385,18 +385,28 @@ class ToroidalModel(object):
             object
     """
 
-    def __init__(self, build, major_rad, minor_rad_z, minor_rad_xy, materials):
+    def __init__(self, 
+                build,
+                major_rad,
+                minor_rad_z,
+                minor_rad_xy,
+                materials,
+                ang_1=None,
+                ang_2=None
+                ):
         self.build = expand_ib_ob(build)
         self.major_rad = major_rad
         self.minor_rad_z = minor_rad_z
         self.minor_rad_xy = minor_rad_xy
+        self.ang_1 = ang_1
+        self.ang_2 = ang_2
+
         if isinstance(materials, str):
             self.input_materials = openmc.Materials.from_xml(materials)
         else:
             self.input_materials = materials
 
         self.assign_materials()
-
     def assign_materials(self):
         """
         Assign OpenMC material objects to each layer in the build dict
@@ -436,9 +446,9 @@ class ToroidalModel(object):
         minor_rad_z = self.minor_rad_z
         minor_rad_xy = self.minor_rad_xy
         # build surfaces
-        surfaces = {}
+        self.surfaces = {}
 
-        surfaces["plasma_surface"] = openmc.ZTorus(
+        self.surfaces["plasma_surface"] = openmc.ZTorus(
             a=major_rad, b=minor_rad_z, c=minor_rad_xy
         )
 
@@ -451,11 +461,18 @@ class ToroidalModel(object):
             delta = (ib + ob) / 2
             minor_rad_z += delta
             minor_rad_xy += delta
-            surfaces[surface] = openmc.ZTorus(
+            self.surfaces[surface] = openmc.ZTorus(
                 a=major_rad,
                 b=minor_rad_z,
                 c=minor_rad_xy,
             )
+            print(
+                f"{surface}: "
+                f"a={major_rad:.2f}, "
+                f"c={minor_rad_xy:.2f}, "
+                f"inner={major_rad - minor_rad_xy:.2f}, "
+                f"outer={major_rad + minor_rad_xy:.2f}"
+                )
 
     def build_regions(self):
         """
@@ -466,15 +483,18 @@ class ToroidalModel(object):
 
         regions["plasma"] = -self.surfaces["plasma_surface"]
 
-        surf_list = list(self.surfaces.keys())
+        previous_surface = self.surfaces["plasma_surface"]
 
-        for inner_surf, outer_surf in zip(surf_list[0:-1], surf_list[1:]):
-            regions[outer_surf] = (
-                -self.surfaces[outer_surf] & +self.surfaces[inner_surf]
-            )
+        for layer, layer_data in self.build.items():
+            if layer_data["inboard"] == 0 and layer_data["outboard"] == 0:
+                continue
 
+            current_surface = self.surfaces[layer]
+
+            regions[layer] = -current_surface & +previous_surface
+
+            previous_surface = current_surface
         self.regions = regions
-        self.surf_list = surf_list
 
     def build_cells(self):
         """
@@ -489,17 +509,24 @@ class ToroidalModel(object):
         )
 
         for layer, layer_def in self.build.items():
-            if layer_def["thickness"] != 0:
-                cell_dict[layer] = openmc.Cell(
-                    region=self.regions[layer],
-                    name=layer,
-                    fill=layer_def["material"],
+            if layer_def["inboard"] == 0 and layer_def["outboard"] == 0:
+                continue
+
+            material = layer_def.get("material")
+
+            cell_dict[layer] = openmc.Cell(
+                region=self.regions[layer],
+                name=layer,
+                fill=material,
                 )
-            materials.add(layer_def["material"])
+
+            if material is not None:
+                materials.add(material)
 
         self.cell_list = list(cell_dict.values())
         self.cell_dict = cell_dict
-        self.materials = materials.discard(None)
+        print("CELL DICT:", self.cell_dict.keys())
+        self.materials = openmc.Materials(list(materials))
 
     def get_bounded_geometry(self):
         """
@@ -521,7 +548,8 @@ class ToroidalModel(object):
             boundary_type="vacuum",
         )
 
-        vac_region = -vac_surf & +self.surfaces[self.surf_list[-1]]
+        outer_surface = list(self.surfaces.values())[-1]
+        vac_region = -vac_surf & +outer_surface
         vac_cell = openmc.Cell(region=vac_region, name="vac_cell")
 
         self.cell_list.append(vac_cell)
@@ -544,15 +572,44 @@ class ToroidalModel(object):
                     tally_list.append(cell_tally)
         self.tallies = openmc.Tallies(tally_list)
 
+    def make_toroidal_sector(self,ang_1, ang_2):
+        ang_1_rad = np.radians(ang_1)
+        ang_2_rad = np.radians(ang_2)
+        plane_1 = openmc.Plane(
+            a=np.sin(ang_1_rad),
+            b=-np.cos(ang_1_rad),
+        )
+        plane_2 = openmc.Plane(
+            a=np.sin(ang_2_rad),
+            b=-np.cos(ang_2_rad),
+        )
+
+        sector_regions={}
+
+        for layer, region in self.regions.items():
+            sector_regions[layer] = region & + plane_1 & +plane_2
+            region = region & -plane_1 & +plane_2
+
+        return sector_regions
+
     def build_openmc_model(self):
         """
         Builds openmc model using the build definition
         """
         self.build_surfaces()
         self.build_regions()
+
+        if self.ang_1 is not None and self.ang_2 is not None:
+                self.regions = self.make_toroidal_sector(
+                self.ang_1,
+                self.ang_2,
+                )
         self.build_cells()
+        print("Cell_DICT:", self.cell_dict.keys())
+
         self.get_bounded_geometry()
         self.build_tallies()
+        # print(sector_regions)
 
     def get_openmc_model(self):
         """

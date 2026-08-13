@@ -1,0 +1,32 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<plots>
+
+    <plot id="1"
+          filename="xy_slice.png"
+          color_by="material"
+          type="slice"
+          basis="xy">
+        <pixels>1000 1000</pixels>
+        <origin>0 0 0</origin>
+        <width>1500 1500</width>
+    </plot>
+
+    <plot id="2"
+          filename="xz_slice.png"
+          color_by="material"
+          type="slice"
+          basis="xz">
+        <pixels>1000 1000</pixels>
+        <origin>0 0 0</origin>
+        <width>1500 1500</width>
+    </plot>
+
+</plots>
+<!-- <?xml version='1.0' encoding='UTF-8'?>
+<plots>
+  <plot id="1" filename="xy_slice.png" color_by="material" type="slice" basis="xy">
+    <pixels>1000 1000</pixels>
+    <origin>0.0 0.0 0.0</origin>
+    <width>1600 1600</width>
+  </plot>
+</plots> -->
