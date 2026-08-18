@@ -538,7 +538,6 @@ class ToroidalModel(object):
 
             if material is not None:
                 materials.add(material)
-
         self.cell_list = list(cell_dict.values())
         self.cell_dict = cell_dict
         print("CELL DICT:", self.cell_dict.keys())
@@ -588,7 +587,7 @@ class ToroidalModel(object):
                     tally_list.append(cell_tally)
         self.tallies = openmc.Tallies(tally_list)
 
-    def make_toroidal_sector(self,ang_1, ang_2):
+    def make_toroidal_sector(self,ang_1, ang_2): #Toroidal sector planes defined by angles ang_1 and ang_2
         ang_1_rad = np.radians(ang_1)
         ang_2_rad = np.radians(ang_2)
         plane_1 = openmc.Plane(

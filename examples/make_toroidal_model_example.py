@@ -53,7 +53,7 @@ build = {
         "description": W.name,
     },
 }
-ang_1 = 60
+ang_1 = 60 #Toroidal plane 1 defined by angle ang_1 and toroidal plane 2 defined by angle ang_2 to create Toroidal sector
 ang_2 =120
 toroidal_model = ToroidalModel(
     build,
