@@ -482,13 +482,7 @@ class ToroidalModel(object):
                 b=minor_rad_z,
                 c=minor_rad_xy,
             )
-            print(
-                f"{surface}: "
-                f"a={major_rad:.2f}, "
-                f"c={minor_rad_xy:.2f}, "
-                f"inner={major_rad - minor_rad_xy:.2f}, "
-                f"outer={major_rad + minor_rad_xy:.2f}"
-                )
+
 
     def build_regions(self):
         """
@@ -620,11 +614,11 @@ class ToroidalModel(object):
                 self.ang_2,
                 )
         self.build_cells()
-        print("Cell_DICT:", self.cell_dict.keys())
+
 
         self.get_bounded_geometry()
         self.build_tallies()
-        # print(sector_regions)
+
 
     def get_openmc_model(self):
         """
