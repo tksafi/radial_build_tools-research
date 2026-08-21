@@ -54,7 +54,7 @@ build = {
     },
 }
 ang_1 = 60 #Toroidal plane 1 defined by angle ang_1 and toroidal plane 2 defined by angle ang_2 to create Toroidal sector
-ang_2 =120
+ang_2 = 120
 toroidal_model = ToroidalModel(
     build,
     major_radius,
@@ -74,7 +74,7 @@ plot.width = (
     3 * major_radius,
 )
 plot.pixels = (1000, 1000)
-plot.color_by = "cell"
+plot.color_by = "material"
 
 model.plots = openmc.Plots([plot])
 model.export_to_model_xml()
