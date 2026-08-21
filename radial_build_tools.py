@@ -407,8 +407,8 @@ class ToroidalModel(object):
                 minor_rad_z,
                 minor_rad_xy,
                 materials,
-                ang_1=None,
-                ang_2=None
+                ang_1=0,
+                ang_2=360,
                 ):
         self.build = expand_ib_ob(build)
         self.major_rad = major_rad
@@ -416,6 +416,8 @@ class ToroidalModel(object):
         self.minor_rad_xy = minor_rad_xy
         self.ang_1 = ang_1
         self.ang_2 = ang_2
+        self.plane_1 = None
+        self.plane_2 = None
 
         if isinstance(materials, str):
             self.input_materials = openmc.Materials.from_xml(materials)
@@ -534,7 +536,6 @@ class ToroidalModel(object):
                 materials.add(material)
         self.cell_list = list(cell_dict.values())
         self.cell_dict = cell_dict
-        print("CELL DICT:", self.cell_dict.keys())
         self.materials = openmc.Materials(list(materials))
 
     def get_bounded_geometry(self):
@@ -558,9 +559,13 @@ class ToroidalModel(object):
         )
 
         outer_surface = list(self.surfaces.values())[-1]
-        vac_region = -vac_surf & +outer_surface
-        vac_cell = openmc.Cell(region=vac_region, name="vac_cell")
+        # vac_region = -vac_surf & +outer_surface
+        if self.ang_1 == 0.0 and self.ang_2 == 360.0:
+            vac_region = -vac_surf & +outer_surface
+        else:
+            vac_region = -vac_surf & +outer_surface & -self.plane_1 & -self.plane_2
 
+        vac_cell = openmc.Cell(region=vac_region, name="vac_cell")
         self.cell_list.append(vac_cell)
         self.cell_dict["vac_cell"] = vac_cell
 
@@ -584,11 +589,11 @@ class ToroidalModel(object):
     def make_toroidal_sector(self,ang_1, ang_2): #Toroidal sector planes defined by angles ang_1 and ang_2
         ang_1_rad = np.radians(ang_1)
         ang_2_rad = np.radians(ang_2)
-        plane_1 = openmc.Plane(
+        self.plane_1 = openmc.Plane(
             a=np.sin(ang_1_rad),
             b=-np.cos(ang_1_rad),
         )
-        plane_2 = openmc.Plane(
+        self.plane_2 = openmc.Plane(
             a=np.sin(ang_2_rad),
             b=-np.cos(ang_2_rad),
         )
@@ -596,8 +601,7 @@ class ToroidalModel(object):
         sector_regions={}
 
         for layer, region in self.regions.items():
-            sector_regions[layer] = region & + plane_1 & +plane_2
-            region = region & -plane_1 & +plane_2
+            sector_regions[layer] = region & + self.plane_1 & +self.plane_2
 
         return sector_regions
 
@@ -608,14 +612,12 @@ class ToroidalModel(object):
         self.build_surfaces()
         self.build_regions()
 
-        if self.ang_1 is not None and self.ang_2 is not None:
+        if not (self.ang_1 ==0.0 and self.ang_2==360.0):
                 self.regions = self.make_toroidal_sector(
                 self.ang_1,
                 self.ang_2,
                 )
         self.build_cells()
-
-
         self.get_bounded_geometry()
         self.build_tallies()
 
